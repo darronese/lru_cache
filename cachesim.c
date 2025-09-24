@@ -64,8 +64,6 @@ Cache* createCache(int setBits, int numLines, int blockBits, int verbose) {
       return NULL;
     }
   }
-  printf("CREATED CACHE WITH s=%d E=%d b=%d, verbose=%s\n",
-         setBits, numLines, blockBits, verbose ? "ON" : "OFF");
   // only set it to new set if not null
   myCache->sets = newSet;
   return myCache;
@@ -83,6 +81,53 @@ void deleteCache(Cache* cache) {
   free(cache);
 }
 
+// helper function to simulate a single access at a cache
+void accessCache(Cache* c, unsigned long long addy) {
+  c->tick++;
+  // calculate the index (FROM NOTES)
+  size_t setIndex = (size_t)((addy >> c->b) & ((1ULL << c->s) - 1ULL));
+  unsigned long long tag = addy >> (c->s + c->b);
+  Set* set = &c->sets[setIndex];
+  Line *lines = set->lines;
+
+  // check if hit
+  for (int i = 0; i < c->E; ++i) {
+    // check for validity and matching tags
+    if (lines[i].valid && lines[i].tag == tag) {
+      c->hits++;
+      lines[i].lruCounter = c->tick;
+      if (c->verbose) printf(" hit");
+      return;
+    }
+  }
+  // MISSED
+  c->misses++;
+  if (c->verbose) printf(" miss");
+  // look for the empty line and bring it into the cache
+  for (int i = 0; i < c->E; ++i) {
+    if (!lines[i].valid) {
+      lines[i].valid = 1;
+      lines[i].tag = tag;
+      lines[i].lruCounter = c->tick;
+      return;
+    }
+  }
+  // if missed AND all the E lines are "full"
+  // EVICT
+  int victim = 0;
+  int oldest = lines[0].lruCounter;
+  for (int i = 1; i < c->E; ++i) {
+    if (lines[i].lruCounter < oldest) {
+      oldest = lines[i].lruCounter;
+      victim = i;
+    }
+  }
+  lines[victim].tag = tag;
+  lines[victim].lruCounter = c->tick;
+  c->evictions++;
+  if (c->verbose) printf(" evicted");
+}
+
 void run(Cache* c, FILE* traceFile) {
   // open file and parse the contents
   char buf[100];
@@ -96,7 +141,21 @@ void run(Cache* c, FILE* traceFile) {
     }
     // skip instruction
     if (op == 'I') continue;
-    printf("%c %llx,%d\n", op, addy, size);
+
+    switch (op) {
+      case 'L':
+      case 'S':
+        accessCache(c, addy);
+        if (c->verbose) printf("\n");
+        break;
+      case 'M':
+        // load
+        accessCache(c, addy);
+        // store
+        accessCache(c, addy);
+        if (c->verbose) printf("\n");
+        break;
+    }
   }
   fclose(traceFile);
 } 
@@ -139,7 +198,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (verbose) {
-    printf("Verbose mode activated");
+    printf("Verbose mode activated\n");
   }
   // validate args
   if (s < 0 || E < 0 || b < 0 || fileName == NULL) {

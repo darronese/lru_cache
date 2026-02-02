@@ -1,17 +1,15 @@
 CC = gcc
 CFLAGS = -g -Wall -Werror -std=c99
+INCLUDES = -Iinclude
+LDFLAGS = -lm
 
-all: csim
+TARGET = cachesim
+SRC = src/cachesim.c
 
-csim: cachesim.c 
-	$(CC) $(CFLAGS) -o cachesim cachesim.c -lm 
+all: $(TARGET)
 
-#
-# cleanup
-#
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $^ $(LDFLAGS)
+
 clean:
-	rm -rf *.o
-	rm -rf *.tmp
-	rm -f cachesim 
-	rm -f trace.all trace.f*
-
+	rm -f $(TARGET) *.o *.tmp trace.all trace.f*

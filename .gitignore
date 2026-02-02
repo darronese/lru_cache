@@ -1,0 +1,12 @@
+cachesim
+build/
+*.o
+*.out
+*.exe
+*.tmp
+*~
+*.swp
+*.swo
+.DS_Store
+.vscode/
+.idea/
